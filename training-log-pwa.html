@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Training Log">
+<meta name="theme-color" content="#080808">
+<title>Training Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#080808; --surface:#0d0d0d; --surface2:#121212; --border:#1e1e1e;
+    --text:#e0ddd8; --dim:#666; --muted:#333;
+    --upper:#4fc3f7; --upper-bg:#0d1f2d;
+    --lower:#81c784; --lower-bg:#0d1f0d;
+    --core:#ce93d8;  --core-bg:#1f0d1f;
+    --full:#ffb74d;  --full-bg:#1f1a08;
+    --cali:#ef9a9a;  --cali-bg:#1a0d0d;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; }
+
+  #app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  #header { padding:16px 18px 12px; border-bottom:1px solid var(--border); flex-shrink:0; padding-top:max(16px,env(safe-area-inset-top)); }
+  #week-strip { padding:12px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  #session-scroll { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:max(20px,env(safe-area-inset-bottom)); }
+
+  .header-title { display:flex; align-items:baseline; gap:10px; }
+  .header-title h1 { font-family:'Bebas Neue'; font-size:36px; letter-spacing:0.05em; line-height:1; color:var(--text); }
+  .wk-badge { font-size:9px; color:var(--muted); letter-spacing:3px; }
+  .header-sub { font-size:8px; color:var(--muted); letter-spacing:1.5px; margin-top:2px; }
+
+  .week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .day-btn { background:transparent; border:1px solid var(--border); color:var(--muted); padding:7px 3px; cursor:pointer; font-family:'DM Mono'; font-size:7px; letter-spacing:0.5px; text-align:center; border-radius:3px; transition:all 0.15s; position:relative; user-select:none; }
+  .day-btn .day-name { font-family:'Bebas Neue'; font-size:16px; letter-spacing:0.03em; display:block; line-height:1.1; }
+  .day-btn .day-label { font-size:6px; line-height:1.3; display:block; }
+  .day-btn.active { border-color:rgba(224,221,216,0.5); color:var(--text); background:var(--surface2); }
+  .day-btn.rest-day { opacity:0.35; cursor:default; }
+  .day-btn.today-dot::after { content:''; position:absolute; top:4px; right:4px; width:4px; height:4px; border-radius:50%; background:var(--lower); }
+
+  .session-inner { padding:14px 16px 0; }
+  .session-header { margin-bottom:12px; }
+  .session-title-row { display:flex; align-items:baseline; justify-content:space-between; }
+  .session-title { font-family:'Bebas Neue'; font-size:24px; letter-spacing:0.05em; }
+  .session-time { font-size:9px; color:var(--muted); }
+  .tags-row { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+  .zone-tag { font-size:7px; letter-spacing:1.5px; padding:2px 6px; border-radius:2px; font-weight:500; }
+  .overall-progress { margin-top:10px; display:flex; align-items:center; gap:10px; }
+  .prog-bar-wrap { flex:1; height:2px; background:var(--surface2); border-radius:1px; overflow:hidden; }
+  .prog-bar-fill { height:100%; background:rgba(224,221,216,0.35); border-radius:1px; transition:width 0.4s ease; }
+  .prog-label { font-size:9px; color:var(--muted); white-space:nowrap; }
+
+  .filter-row { display:flex; gap:4px; margin-bottom:12px; overflow-x:auto; padding-bottom:2px; }
+  .filter-row::-webkit-scrollbar { display:none; }
+  .filter-btn { background:transparent; border:1px solid var(--border); color:var(--muted); padding:4px 10px; cursor:pointer; font-family:'DM Mono'; font-size:8px; letter-spacing:1.5px; border-radius:2px; transition:all 0.15s; white-space:nowrap; }
+  .filter-btn.active { color:var(--text); border-color:rgba(255,255,255,0.2); background:var(--surface2); }
+
+  .warmup-card { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px 14px; margin-bottom:8px; }
+  .card-label { font-size:8px; color:var(--muted); letter-spacing:3px; margin-bottom:8px; }
+  .warmup-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-size:11px; }
+  .warmup-row:last-child { border-bottom:none; }
+  .warmup-name { color:var(--dim); }
+  .warmup-detail { color:var(--muted); font-size:9px; text-align:right; max-width:55%; }
+
+  .block-card { border:1px solid var(--border); border-radius:4px; overflow:hidden; margin-bottom:8px; transition:opacity 0.3s; border-left-width:2px; }
+  .block-card.all-done { opacity:0.5; }
+  .block-header { background:var(--surface); padding:9px 13px; display:flex; align-items:center; justify-content:space-between; }
+  .block-header-left { display:flex; align-items:center; gap:8px; }
+  .block-muscle { font-family:'Bebas Neue'; font-size:15px; letter-spacing:1px; color:#aaa; }
+  .block-zone-tag { font-size:7px; letter-spacing:1px; padding:1px 5px; border-radius:2px; }
+  .block-header-right { display:flex; align-items:center; gap:6px; }
+  .editable { border-bottom:1px dashed rgba(255,255,255,0.12); cursor:pointer; transition:color 0.15s; }
+  .editable:active { color:#fff; }
+  .sets-count { font-size:10px; color:var(--muted); }
+  .rest-badge { font-size:8px; color:var(--muted); padding:2px 6px; border:1px solid var(--border); border-radius:2px; letter-spacing:0.5px; }
+  .block-body { background:var(--bg); padding:10px 13px; }
+  .note-line { font-size:8px; color:#484848; font-style:italic; line-height:1.6; padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid #111; letter-spacing:0.3px; }
+
+  .ex-row { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #0e0e0e; }
+  .ex-row:last-of-type { border-bottom:none; }
+  .ex-name { font-size:11px; color:#999; }
+  .ex-reps { font-size:10px; color:var(--muted); }
+  .weight-badge { font-size:9px; color:#333; border:1px solid var(--border); padding:3px 8px; border-radius:2px; cursor:pointer; transition:all 0.15s; min-width:52px; text-align:center; letter-spacing:0.5px; }
+  .weight-badge.has-weight { color:var(--full); border-color:#3a2a08; background:#130f00; }
+
+  .sets-row { margin-top:10px; display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+  .sets-label { font-size:7px; color:#252525; letter-spacing:1.5px; margin-right:2px; }
+  .set-dot { width:28px; height:28px; border-radius:3px; border:1px solid #1e1e1e; display:flex; align-items:center; justify-content:center; font-size:10px; color:transparent; cursor:pointer; transition:all 0.12s; flex-shrink:0; }
+  .set-dot.done { color:#666; }
+  .sets-progress { flex:1; min-width:30px; height:1px; background:#0f0f0f; margin-left:4px; border-radius:1px; overflow:hidden; }
+  .sets-progress-fill { height:100%; opacity:0.45; transition:width 0.3s ease; }
+
+  /* REST TIMER */
+  .rest-timer-bar {
+    position:fixed; bottom:0; left:0; right:0; z-index:50;
+    background:var(--surface); border-top:1px solid var(--border);
+    padding:12px 20px; padding-bottom:max(12px,env(safe-area-inset-bottom));
+    display:flex; align-items:center; gap:14px;
+    transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);
+  }
+  .rest-timer-bar.visible { transform:translateY(0); }
+  .timer-label { font-size:8px; color:var(--muted); letter-spacing:2px; white-space:nowrap; }
+  .timer-display { font-family:'Bebas Neue'; font-size:28px; letter-spacing:0.05em; color:var(--text); min-width:52px; }
+  .timer-display.urgent { color:#ef9a9a; }
+  .timer-prog-wrap { flex:1; height:2px; background:#111; border-radius:1px; overflow:hidden; }
+  .timer-prog-fill { height:100%; background:var(--lower); border-radius:1px; transition:width 0.5s linear; }
+  .timer-btn { font-size:9px; color:var(--muted); background:transparent; border:1px solid var(--border); padding:5px 10px; border-radius:3px; cursor:pointer; letter-spacing:1px; font-family:'DM Mono'; white-space:nowrap; }
+  .timer-btn:active { color:var(--text); }
+  .timer-skip { font-size:9px; color:#333; background:transparent; border:none; padding:5px 8px; cursor:pointer; font-family:'DM Mono'; letter-spacing:1px; }
+
+  /* REST DAY */
+  .rest-day-view { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+  .rest-day-text { font-size:11px; color:#1e1e1e; letter-spacing:3px; }
+  .rest-day-icon { font-size:32px; opacity:0.15; }
+
+  /* MODAL */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:100; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+  .modal-overlay.open { opacity:1; pointer-events:all; }
+  .modal-sheet { background:var(--surface); border:1px solid var(--border); border-radius:12px 12px 0 0; padding:24px 22px; width:100%; max-width:480px; padding-bottom:max(24px,env(safe-area-inset-bottom)); transform:translateY(100%); transition:transform 0.25s cubic-bezier(0.32,0.72,0,1); }
+  .modal-overlay.open .modal-sheet { transform:translateY(0); }
+  .modal-handle { width:36px; height:4px; background:#333; border-radius:2px; margin:0 auto 20px; }
+  .modal-prompt { font-size:9px; color:var(--muted); letter-spacing:2.5px; margin-bottom:14px; }
+  .modal-input { width:100%; background:var(--bg); border:1px solid #2e2e2e; color:var(--text); padding:12px 13px; border-radius:4px; font-family:'DM Mono'; font-size:16px; outline:none; caret-color:var(--text); }
+  .modal-input:focus { border-color:#444; }
+  .modal-btns { display:flex; gap:8px; margin-top:14px; }
+  .modal-save { flex:1; background:var(--surface2); border:1px solid #333; color:var(--text); padding:13px; border-radius:4px; font-family:'DM Mono'; font-size:11px; letter-spacing:1.5px; cursor:pointer; }
+  .modal-cancel { flex:1; background:transparent; border:1px solid var(--border); color:var(--muted); padding:13px; border-radius:4px; font-family:'DM Mono'; font-size:11px; letter-spacing:1.5px; cursor:pointer; }
+
+  /* PROGRESS SUMMARY */
+  .progress-summary { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+  .progress-summary-label { font-size:8px; color:var(--muted); letter-spacing:2px; }
+  .progress-summary-value { font-family:'Bebas Neue'; font-size:20px; letter-spacing:0.05em; color:var(--lower); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div class="header-title"><h1>TRAINING LOG</h1><span class="wk-badge">WK 01</span></div>
+    <div class="header-sub">MON UPPER · TUE CORE · THU LOWER · FRI FULL BODY</div>
+  </div>
+  <div id="week-strip"><div class="week-grid" id="week-grid"></div></div>
+  <div id="session-scroll"><div id="session-content"></div></div>
+</div>
+
+<!-- Rest Timer -->
+<div class="rest-timer-bar" id="rest-timer">
+  <div>
+    <div class="timer-label">▲ REST</div>
+    <div class="timer-display" id="timer-display">00:00</div>
+  </div>
+  <div class="timer-prog-wrap"><div class="timer-prog-fill" id="timer-prog" style="width:100%"></div></div>
+  <button class="timer-btn" id="timer-plus">+30</button>
+  <button class="timer-skip" id="timer-skip">✕</button>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-prompt" id="modal-prompt"></div>
+    <input class="modal-input" id="modal-input" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="modal-btns">
+      <button class="modal-save" id="modal-save">SAVE</button>
+      <button class="modal-cancel" id="modal-cancel">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── ZONE STYLES ─────────────────────────────────────────────────────────────
+const ZONE = {
+  UPPER:{ accent:'#4fc3f7', bg:'#0d1f2d', label:'UPPER' },
+  LOWER:{ accent:'#81c784', bg:'#0d1f0d', label:'LOWER' },
+  CORE: { accent:'#ce93d8', bg:'#1f0d1f', label:'CORE'  },
+  FULL: { accent:'#ffb74d', bg:'#1f1a08', label:'FULL BODY' },
+  CALI: { accent:'#ef9a9a', bg:'#1a0d0d', label:'CALI'  },
+};
+
+// ─── WEEK ─────────────────────────────────────────────────────────────────────
+const WEEK = [
+  {day:'MON',key:'MON',label:'SESSION 1',rest:false},
+  {day:'TUE',key:'TUE',label:'SESSION 2',rest:false},
+  {day:'WED',key:null, label:'REST',     rest:true },
+  {day:'THU',key:'THU',label:'SESSION 3',rest:false},
+  {day:'FRI',key:'FRI',label:'SESSION 4',rest:false},
+  {day:'SAT',key:null, label:'REST',     rest:true },
+  {day:'SUN',key:null, label:'REST',     rest:true },
+];
+
+// ─── DEFAULT SESSIONS ────────────────────────────────────────────────────────
+const DEFAULT_SESSIONS = {
+  MON:{
+    fullDay:'MONDAY', label:'SESSION 1', time:'75–85 min', tags:['UPPER'],
+    warmup:[
+      {name:'Scapular Push-Ups',  detail:'10 reps · slow and controlled'},
+      {name:'Arm circles',        detail:'20 reps'},
+      {name:'Band pull-aparts',   detail:'15 reps'},
+      {name:'Push-up to downdog', detail:'10 reps'},
+    ],
+    blocks:[
+      { muscle:'CHEST', zone:'UPPER', sets:4, rest:'90 sec',
+        note:'Tempo 3 sec down · 1 sec hold · 1 sec up · stop 1–2 reps before failure',
+        exercises:[
+          {name:'Incline DB Press',  reps:'8–10',  weight:''},
+          {name:'Wide Push-Ups',     reps:'12–15', weight:''},
+          {name:'Freemotion Cable Press', reps:'11', weight:''},
+        ]},
+      { muscle:'BACK', zone:'UPPER', sets:4, rest:'90 sec',
+        note:'Tempo 1 sec pull · 1 sec hold · 3 sec lower · think elbows to hips',
+        exercises:[
+          {name:'Seated Row',    reps:'10',    weight:''},
+          {name:'Inverted Rows', reps:'12–15', weight:''},
+        ]},
+      { muscle:'SHOULDERS', zone:'UPPER', sets:4, rest:'90 sec',
+        note:'Tempo 2 sec up · 1 sec hold · 3 sec down · brace core on press',
+        exercises:[
+          {name:'Overhead Press (DB)',    reps:'8–10',  weight:''},
+          {name:'Cable Lateral Raises',   reps:'12–15', weight:''},
+          {name:'Reverse Cable Fly',      reps:'12',    weight:''},
+        ]},
+      { muscle:'BICEPS + TRICEPS', zone:'UPPER', sets:3, rest:'45 sec',
+        note:'Superset — no rest between · tempo 2 sec up · 1 sec squeeze · 3 sec down',
+        exercises:[
+          {name:'Standard DB Curl',              reps:'10–12',  weight:''},
+          {name:'Hammer Curl (DB)',               reps:'12 each',weight:''},
+          {name:'Overhead Tricep Extension (DB)', reps:'12',     weight:''},
+          {name:'Cable Tricep Pushdown',          reps:'13',     weight:''},
+        ]},
+      { muscle:'TRAPS + GRIP', zone:'UPPER', sets:3, rest:'60 sec',
+        note:'Shrugs — 2 sec hold at top · walk tall on carry · dont lean',
+        exercises:[
+          {name:"DB Shrugs",             reps:'15',       weight:''},
+          {name:"Farmer's Carry",        reps:'30 meters',weight:''},
+          {name:'Dead Hang',             reps:'40 sec',   weight:''},
+        ]},
+      { muscle:'CALISTHENICS ENDURANCE', zone:'CALI', sets:3, rest:'45 sec',
+        note:'Pull-up — 1 sec up · 5 sec hold · 5 sec lower · add 1 rep each week',
+        exercises:[
+          {name:'Pull-Up Hold (5s top + 5s lower)', reps:'6',     weight:''},
+          {name:'Push-Up',                           reps:'20',    weight:''},
+          {name:'Dead Hang',                         reps:'40 sec',weight:''},
+        ]},
+    ]
+  },
+  TUE:{
+    fullDay:'TUESDAY', label:'SESSION 2', time:'65–75 min', tags:['CORE','MIDDLE'],
+    warmup:[
+      {name:'Cat-cow',          detail:'10 reps · slow and controlled'},
+      {name:'Dead hangs',       detail:'3 × 20 sec'},
+      {name:'Hip circles',      detail:'10 reps each side'},
+      {name:'Hollow Body Hold', detail:'20 sec · lower back pressed into floor'},
+    ],
+    blocks:[
+      { muscle:'BACK + PULL STRENGTH', zone:'UPPER', sets:5, rest:'90 sec',
+        note:'Negatives = jump up · lower 5 sec slow · think elbows driving to hips',
+        exercises:[
+          {name:'Lat Pulldown (wide grip)', reps:'10–12',         weight:''},
+          {name:'Pull-Ups / Negatives',     reps:'max clean reps',weight:''},
+        ]},
+      { muscle:'CALISTHENICS SKILL', zone:'CALI', sets:4, rest:'60 sec',
+        note:'Skill work not cardio · progress one step every 2–4 weeks',
+        exercises:[
+          {name:'Scapular Pull-Ups',     reps:'10',     weight:''},
+          {name:'Tuck Front Lever Hold', reps:'10 sec', weight:''},
+          {name:'Serratus Push-Ups',     reps:'12',     weight:''},
+        ]},
+      { muscle:'FACE PULLS + REAR DELT', zone:'UPPER', sets:3, rest:'45 sec',
+        note:'Pull to forehead · squeeze rear delt at peak · light weight only',
+        exercises:[
+          {name:'Face Pulls',        reps:'16', weight:''},
+          {name:'Band pull-aparts',  reps:'15', weight:''},
+        ]},
+      { muscle:'LOWER BACK + SPINAL ERECTORS', zone:'CORE', sets:3, rest:'60 sec',
+        note:'Tempo 1 sec up · 2 sec hold · 3 sec down · never load heavy',
+        exercises:[
+          {name:'Hyperextensions',       reps:'12', weight:''},
+          {name:'Good Mornings (light)', reps:'10', weight:''},
+        ]},
+      { muscle:'OBLIQUES', zone:'CORE', sets:4, rest:'60 sec',
+        note:'Twist Sit-Ups — rotate fully · elbow to opposite knee · add 5 sec to side plank each week',
+        exercises:[
+          {name:'Twist Sit-Ups', reps:'20 each side',   weight:''},
+          {name:'Side Plank',    reps:'35 sec each side',weight:''},
+        ]},
+      { muscle:'CORE ENDURANCE', zone:'CORE', sets:4, rest:'45 sec',
+        note:'Leg raises — no swinging · Ab wheel — only go as far as lower back stays flat',
+        exercises:[
+          {name:'Hanging Leg Raises', reps:'13',    weight:''},
+          {name:'Ab Wheel Rollout',   reps:'10',    weight:''},
+          {name:'Hollow Body Hold',   reps:'25 sec',weight:''},
+        ]},
+      { muscle:'ANTI-ROTATION + STABILITY', zone:'CORE', sets:3, rest:'45 sec',
+        note:'Pallof Press — dont rotate · Dead Bug — lower back glued to floor',
+        exercises:[
+          {name:'Pallof Press', reps:'12 each side', weight:''},
+          {name:'Dead Bug',     reps:'10 each side', weight:''},
+        ]},
+    ]
+  },
+  THU:{
+    fullDay:'THURSDAY', label:'SESSION 3', time:'75–85 min', tags:['LOWER'],
+    warmup:[
+      {name:'Jump Rope',     detail:'2 min easy · activates calves and coordination'},
+      {name:'Leg swings',    detail:'16 reps each leg'},
+      {name:'Glute bridges', detail:'20 reps · activates glutes before loading'},
+      {name:'Hip circles',   detail:'11 reps each side'},
+    ],
+    blocks:[
+      { muscle:'QUADS', zone:'LOWER', sets:4, rest:'90 sec',
+        note:'Tempo 3 sec down · 1 sec hold · 1 sec up · full range every rep',
+        exercises:[
+          {name:'Leg Press (heavy)',     reps:'10–12',      weight:''},
+          {name:'Bulgarian Split Squat', reps:'10 each leg',weight:''},
+        ]},
+      { muscle:'HAMSTRINGS', zone:'LOWER', sets:4, rest:'90 sec',
+        note:'RDL — feel hamstring stretch at bottom · drive hips forward at top · 1 up · 2 hold · 3 down',
+        exercises:[
+          {name:'Romanian Deadlift (DB)', reps:'10–11', weight:''},
+          {name:'Leg Curl (machine)',      reps:'12–13', weight:''},
+        ]},
+      { muscle:'GLUTES', zone:'LOWER', sets:3, rest:'60 sec',
+        note:'Hip Thrust — drive through heels · squeeze 2 sec at top every rep',
+        exercises:[
+          {name:'Hip Thrust (DB or barbell)', reps:'12',    weight:''},
+          {name:'Glute Bridge Hold',          reps:'40 sec',weight:''},
+        ]},
+      { muscle:'HIP FLEXORS', zone:'LOWER', sets:3, rest:'45 sec',
+        note:'Critical for boxing knee drives · control the lower — no swinging',
+        exercises:[
+          {name:'Hanging Knee Raises',     reps:'12', weight:''},
+          {name:'Dragon Flag progression', reps:'6',  weight:''},
+        ]},
+      { muscle:'LOWER BACK', zone:'CORE', sets:3, rest:'60 sec',
+        note:'Tempo 1 sec up · 2 sec hold · 3 sec lower · posture and injury prevention',
+        exercises:[
+          {name:'Hyperextensions',       reps:'12', weight:''},
+          {name:'Good Mornings (light)', reps:'10', weight:''},
+        ]},
+      { muscle:'CALVES + ANKLE STABILITY', zone:'LOWER', sets:3, rest:'45 sec',
+        note:'Single leg — full range all the way down and up · tibialis toes up hold 1 sec',
+        exercises:[
+          {name:'Single Leg Calf Raises', reps:'15 each', weight:''},
+          {name:'Tibialis Raises',         reps:'20',      weight:''},
+        ]},
+      { muscle:'CALISTHENICS FINISHER', zone:'CALI', sets:3, rest:'60 sec',
+        note:'Pistol — assisted until full range · Wall Sit — 90 degree angle · dont let hips drop',
+        exercises:[
+          {name:'Pistol Squat progression', reps:'6 each leg', weight:''},
+          {name:'Jump Squats',              reps:'12',          weight:''},
+          {name:'Wall Sit',                 reps:'45 sec',      weight:''},
+        ]},
+    ]
+  },
+  FRI:{
+    fullDay:'FRIDAY', label:'SESSION 4', time:'70–80 min', tags:['FULL BODY'],
+    warmup:[
+      {name:'Inchworm',     detail:'8 reps · full body mobility'},
+      {name:'Jumping jacks',detail:'30 reps'},
+      {name:'Arm swings',   detail:'20 reps'},
+      {name:'Hip openers',  detail:'10 reps each side'},
+    ],
+    blocks:[
+      { muscle:'CALISTHENICS SKILL OPENER', zone:'CALI', sets:3, rest:'60 sec',
+        note:'Do completely fresh · Muscle-Up use momentum until strict · Handstand — engage core the whole time',
+        exercises:[
+          {name:'Muscle-Up or Chest-to-Bar Pull-Up', reps:'max reps', weight:''},
+          {name:'Handstand Hold (wall)',              reps:'20 sec',   weight:''},
+          {name:'Dips',                               reps:'12',       weight:''},
+        ]},
+      { muscle:'SERRATUS + REAR DELT HEALTH', zone:'UPPER', sets:3, rest:'45 sec',
+        note:'Protects shoulder joint long term — never skip · Y-Raises light weight only · 2 sec up · 3 sec lower',
+        exercises:[
+          {name:'Serratus Push-Ups',         reps:'12', weight:''},
+          {name:'Face Pulls',                reps:'16', weight:''},
+          {name:'Y-Raises (prone on bench)', reps:'12', weight:''},
+        ]},
+      { muscle:'FULL BODY CIRCUIT', zone:'FULL', sets:4, rest:'90 sec',
+        note:'Quality over speed · track total time each week · aim to get faster with same quality',
+        exercises:[
+          {name:'Pull-Ups / Negatives (BACK)',           reps:'max reps',   weight:''},
+          {name:'Archer Push-Ups (CHEST+SHOULDERS)',     reps:'8 each side',weight:''},
+          {name:'Romanian Deadlift DB (HAMSTRINGS)',      reps:'10',         weight:''},
+          {name:'Box Jumps (LEGS+POWER)',                reps:'6',          weight:''},
+          {name:'Twist Sit-Ups (OBLIQUES)',              reps:'20 each side',weight:''},
+          {name:"Farmer's Carry (GRIP)",                 reps:'30 meters',  weight:''},
+          {name:'L-sit or Tuck Hold (CORE)',             reps:'25 sec',     weight:''},
+        ]},
+      { muscle:'ENDURANCE FINISHER', zone:'FULL', sets:3, rest:'30 sec',
+        note:'Minimal rest — tests conditioning · push through fatigue but keep form',
+        exercises:[
+          {name:'Burpees',                    reps:'10',    weight:''},
+          {name:'Mountain Climbers',          reps:'20',    weight:''},
+          {name:'Push-Ups',                   reps:'15',    weight:''},
+          {name:'Jump Rope or Shadow Boxing', reps:'40 sec',weight:''},
+        ]},
+    ]
+  },
+};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let sessions   = JSON.parse(localStorage.getItem('tl_sessions_v3')||'null') || JSON.parse(JSON.stringify(DEFAULT_SESSIONS));
+let progress   = JSON.parse(localStorage.getItem('tl_progress_v3')||'{}');
+let activeDay  = localStorage.getItem('tl_activeday')||'MON';
+let activeFilter = 'ALL';
+
+function save() {
+  localStorage.setItem('tl_sessions_v3', JSON.stringify(sessions));
+  localStorage.setItem('tl_progress_v3', JSON.stringify(progress));
+  localStorage.setItem('tl_activeday', activeDay);
+}
+
+function isDone(day,bi,si)   { return !!progress[`${day}-${bi}-${si}`]; }
+function toggleSet(day,bi,si){ progress[`${day}-${bi}-${si}`]=!progress[`${day}-${bi}-${si}`]; save(); render(); startRestTimer(day,bi); }
+function setsCompleted(day,bi){ const b=sessions[day]?.blocks[bi]; if(!b)return 0; return Array.from({length:b.sets},(_,i)=>isDone(day,bi,i)).filter(Boolean).length; }
+function totalSetsDay(day)   { return sessions[day]?.blocks.reduce((a,b)=>a+b.sets,0)||0; }
+function completedSetsDay(day){ return sessions[day]?.blocks.reduce((acc,_,bi)=>acc+setsCompleted(day,bi),0)||0; }
+
+// ─── REST TIMER ──────────────────────────────────────────────────────────────
+let timerInterval = null;
+let timerRemaining = 0;
+let timerTotal = 0;
+
+function parseRestSecs(restStr) {
+  const m = restStr.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 60;
+}
+
+function startRestTimer(day, bi) {
+  const block = sessions[day]?.blocks[bi];
+  if (!block) return;
+  const secs = parseRestSecs(block.rest);
+  clearInterval(timerInterval);
+  timerRemaining = secs;
+  timerTotal = secs;
+  document.getElementById('rest-timer').classList.add('visible');
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    updateTimerDisplay();
+    if (timerRemaining <= 0) { clearInterval(timerInterval); stopTimer(); }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerRemaining/60);
+  const s = timerRemaining%60;
+  const disp = document.getElementById('timer-display');
+  const prog = document.getElementById('timer-prog');
+  disp.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  disp.className = 'timer-display' + (timerRemaining<=10?' urgent':'');
+  prog.style.width = `${timerTotal>0?(timerRemaining/timerTotal*100):0}%`;
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  document.getElementById('rest-timer').classList.remove('visible');
+}
+
+document.getElementById('timer-skip').onclick = stopTimer;
+document.getElementById('timer-plus').onclick = () => { timerRemaining+=30; timerTotal=Math.max(timerTotal,timerRemaining); updateTimerDisplay(); };
+
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+let modalCb = null;
+const modalEl    = document.getElementById('modal');
+const modalInput = document.getElementById('modal-input');
+const modalPrompt= document.getElementById('modal-prompt');
+
+function openModal(prompt, value, cb) {
+  modalCb=cb; modalPrompt.textContent=prompt.toUpperCase(); modalInput.value=value;
+  modalEl.classList.add('open'); setTimeout(()=>modalInput.focus(),250);
+}
+function closeModal() { modalEl.classList.remove('open'); modalCb=null; }
+
+document.getElementById('modal-save').onclick   = ()=>{ if(modalCb) modalCb(modalInput.value); closeModal(); };
+document.getElementById('modal-cancel').onclick = closeModal;
+modalInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){if(modalCb)modalCb(modalInput.value);closeModal();} });
+modalEl.addEventListener('click', e=>{ if(e.target===modalEl) closeModal(); });
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function renderWeek() {
+  document.getElementById('week-grid').innerHTML = WEEK.map(w=>{
+    const onclick = w.rest ? '' : `setDay('${w.key}')`;
+    const cls = 'day-btn' + (w.rest?' rest-day':'') + (!w.rest&&activeDay===w.key?' active':'') + (w.day==='MON'?' today-dot':'');
+    return `<button class="${cls}" onclick="${onclick}">
+      <span class="day-name">${w.day}</span>
+      <span class="day-label">${w.label}</span>
+    </button>`;
+  }).join('');
+}
+
+function renderSession() {
+  const el = document.getElementById('session-content');
+  const s  = sessions[activeDay];
+  if (!s) {
+    el.innerHTML=`<div class="rest-day-view"><div class="rest-day-icon">☀</div><div class="rest-day-text">REST / BOXING DAY</div></div>`;
+    return;
+  }
+  const total=totalSetsDay(activeDay), done=completedSetsDay(activeDay), pct=total>0?(done/total*100):0;
+  const tagsHtml = s.tags.map(t=>{ const z=ZONE[t]||ZONE.FULL; return `<span class="zone-tag" style="background:${z.bg};color:${z.accent};border:1px solid ${z.accent}22">${t}</span>`; }).join('');
+  const filters=['ALL','UPPER','LOWER','CORE','FULL','CALI'];
+  const filterHtml = filters.map(f=>`<button class="filter-btn${activeFilter===f?' active':''}" style="${activeFilter===f&&f!=='ALL'?`color:${(ZONE[f]||{accent:'#fff'}).accent};border-color:${(ZONE[f]||{accent:'#fff'}).accent}44`:''}" onclick="setFilter('${f}')">${f}</button>`).join('');
+  const warmupHtml = activeFilter==='ALL' ? `<div class="warmup-card"><div class="card-label">WARM UP</div>${s.warmup.map(w=>`<div class="warmup-row"><span class="warmup-name">${w.name}</span><span class="warmup-detail">${w.detail}</span></div>`).join('')}</div>` : '';
+
+  const blocksHtml = s.blocks.map((block,bi)=>{
+    if(activeFilter!=='ALL'&&block.zone!==activeFilter) return '';
+    const z=ZONE[block.zone]||ZONE.FULL;
+    const comp=setsCompleted(activeDay,bi), allDone=comp===block.sets, bPct=block.sets>0?(comp/block.sets*100):0;
+    const exHtml = block.exercises.map((ex,ei)=>`
+      <div class="ex-row">
+        <span class="ex-name">${ex.name}</span>
+        <span class="ex-reps editable" onclick="editReps('${activeDay}',${bi},${ei})">${ex.reps}</span>
+        <span class="weight-badge${ex.weight?' has-weight':''}" onclick="editWeight('${activeDay}',${bi},${ei})">${ex.weight||'+ kg'}</span>
+      </div>`).join('');
+    const dotsHtml = Array.from({length:block.sets},(_,si)=>{ const d=isDone(activeDay,bi,si); return `<div class="set-dot${d?' done':''}" style="${d?`background:${z.bg};border-color:${z.accent}44;color:${z.accent}`:''}" onclick="toggleSet('${activeDay}',${bi},${si})">${d?'✓':''}</div>`; }).join('');
+    return `
+      <div class="block-card${allDone?' all-done':''}" style="border-left-color:${z.accent}33">
+        <div class="block-header">
+          <div class="block-header-left">
+            <span class="block-muscle">${block.muscle}</span>
+            <span class="block-zone-tag" style="background:${z.bg};color:${z.accent}">${z.label}</span>
+          </div>
+          <div class="block-header-right">
+            <span class="sets-count editable" onclick="editSets('${activeDay}',${bi})">${comp}/${block.sets} sets</span>
+            <span class="rest-badge editable" onclick="editRest('${activeDay}',${bi})">REST ${block.rest}</span>
+          </div>
+        </div>
+        <div class="block-body">
+          ${block.note?`<div class="note-line">⚑ ${block.note}</div>`:''}
+          ${exHtml}
+          <div class="sets-row">
+            <span class="sets-label">SETS</span>${dotsHtml}
+            <div class="sets-progress"><div class="sets-progress-fill" style="width:${bPct}%;background:${z.accent}"></div></div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="session-inner">
+      <div class="session-header">
+        <div class="session-title-row">
+          <span class="session-title">${s.fullDay} — ${s.label}</span>
+          <span class="session-time">⏱ ${s.time}</span>
+        </div>
+        <div class="tags-row">${tagsHtml}</div>
+        <div class="overall-progress">
+          <div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
+          <span class="prog-label">${done}/${total} sets</span>
+        </div>
+      </div>
+      <div class="filter-row">${filterHtml}</div>
+      ${warmupHtml}${blocksHtml}
+    </div>`;
+}
+
+function render() { renderWeek(); renderSession(); }
+
+// ─── ACTIONS ─────────────────────────────────────────────────────────────────
+function setDay(key)   { activeDay=key; activeFilter='ALL'; stopTimer(); save(); render(); }
+function setFilter(f)  { activeFilter=f; render(); }
+function editReps(day,bi,ei)  { const ex=sessions[day].blocks[bi].exercises[ei]; openModal(`Reps — ${ex.name}`,ex.reps,val=>{ sessions[day].blocks[bi].exercises[ei].reps=val; save(); render(); }); }
+function editWeight(day,bi,ei){ const ex=sessions[day].blocks[bi].exercises[ei]; openModal(`Weight — ${ex.name}`,ex.weight,val=>{ sessions[day].blocks[bi].exercises[ei].weight=val; save(); render(); }); }
+function editSets(day,bi)     { openModal('Number of sets',String(sessions[day].blocks[bi].sets),val=>{ const n=parseInt(val); if(n>0){sessions[day].blocks[bi].sets=n; save(); render();} }); }
+function editRest(day,bi)     { openModal('Rest time (e.g. 90 sec)',sessions[day].blocks[bi].rest,val=>{ sessions[day].blocks[bi].rest=val; save(); render(); }); }
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
